@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+.caption {
+  font-weight: bold;
+}
+
+.key path {
+  display: none;
+}
+
+.key line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.tract-border {
+    stroke-opacity: .3;
+    stroke: #000;
+    }
+
+.tract-border-tog {
+    fill: none;
+    }
+    
+.county-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+}
+
+.state-border {
+    stroke-opacity: 1;
+    stroke: #000;
+    }
+
+.state-border-tog {
+    fill: none;
+    }
+
+
+</style>
+
+<head>
+<title>Washington Population Density</title>
+<h1>Wasington Population Density, 2014</h1>
+</head>
+
+<body>
+
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<script>
+
+var colorChange = false;
+var tractBound = false;
+var stateBound = true;
+
+var width = 960,
+    height = 700;
+
+var formatNumber = d3.format(",d");
+
+var path = d3.geo.path()
+    .projection(null);
+
+var color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]);
+    
+
+// A position encoding for the key only.
+var x = d3.scale.linear()
+    .domain([0, 5100])
+    .range([0, 480]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(13)
+    .tickValues(color.domain())
+    .tickFormat(function(d) { return d >= 100 ? formatNumber(d) : null; });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+var g = svg.append("g")
+    .attr("class", "key")
+    .attr("transform", "translate(440,650)");
+
+g.selectAll("rect")
+    .data(color.range().map(function(d, i) {
+      return {
+        x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+        x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+        z: d
+      };
+    }))
+  .enter().append("rect")
+    .attr("height", 8)
+    .attr("x", function(d) { return d.x0; })
+    .attr("width", function(d) { return d.x1 - d.x0; })
+    .style("fill", function(d) { return d.z; });
+
+g.call(xAxis).append("text")
+    .attr("class", "caption")
+    .attr("y", -6)
+    .text("Population per square mile");
+
+d3.json("wa.json", function(error, wa) {
+  if (error) throw error;
+
+  var tracts = topojson.feature(wa, wa.objects.tracts);
+
+  // Clip tracts to land.
+  svg.append("defs").append("clipPath")
+      .attr("id", "clip-land")
+    .append("path")
+      .datum(topojson.feature(wa, wa.objects.counties))
+      .attr("d", path);
+
+  // Group tracts by color for faster rendering.
+     svg.append("g")
+      .attr("class", "tract")
+      .attr("clip-path", "url(#clip-land)")
+    .selectAll("path")
+      .data(d3.nest()
+        .key(function(d) { return (d.properties.population / d.properties.area * 2.58999e6); })
+        .entries(tracts.features.filter(function(d) { return d.properties.area; })))
+    .enter().append("path")
+      .call(colorToggle)
+      //.style("fill", function(d) { return d.key; })
+      .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
+
+  // Draw county borders.
+      svg.append("path")
+          .datum(topojson.mesh(wa, wa.objects.counties, function(a, b) { return a != b; }))
+          .attr("class", "county-border")
+          .attr("d", path);
+  
+  // Draw tract borders.
+    svg.append("path")
+        .datum(topojson.mesh(wa, wa.objects.tracts, function(d) { return true;}))
+        .attr("class", "tract-border-tog")
+        .attr("d", path);
+    
+  // Draw state border. 
+     svg.append("path")
+         .datum(topojson.mesh(wa, wa.objects.state, function(d){ return true;}))
+         .attr("class", "state-border-tog")
+         .attr("d", path);
+});
+
+d3.select(self.frameElement).style("height", height + "px");
+
+function colorToggle() {
+    
+    colorChange = !colorChange;
+    
+    if (colorChange == false){
+        color.range(["#fefefe", "#e1feeb", "#b1feca", "#92feb6", "#50de7f", "#0fc14a", "#228e46", "#0d6e2d", "#004517"]);
+    }
+    else{
+        color.range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]);
+        
+    }
+    svg.selectAll("path")
+       .style("fill", function(d){ return color(d.key)});
+    svg.selectAll("rect")
+        .data(color.range().map(function(d, i) { return {z: d}; }))
+        .style("fill", function(d) { return d.z });
+   }
+    
+function stateToggle() {
+    stateBound = !stateBound;
+    
+    if(stateBound == false){
+        svg.selectAll(".state-border-tog").classed("state-border", true);
+    }
+    else{
+       svg.selectAll(".state-border-tog").classed("state-border", false);
+    }
+    
+    }
+
+function tractToggle() {
+    tractBound = !tractBound;
+    if(tractBound == false){
+        svg.selectAll(".tract-border-tog").classed("tract-border", true);
+    }
+    else{
+        svg.selectAll(".tract-border-tog").classed("tract-border", false);
+    }
+}
+
+</script>
+
+<div style="width: 400px;">
+    
+    <div style="float: left; width: 100px;" id="color">
+        <input name="colorButton"
+               type="button"
+               value="Different Color"
+               onclick="colorToggle()" 
+        />
+    </div>
+
+    <div style="float: left; width: 148px;" id="state">
+        <input name="stateButton"
+               type="button"
+               value="Toggle State Boundary"
+               onclick="stateToggle()" 
+        />
+    </div>
+
+    <div style="float: left; width: 100px;" id="tract">
+        <input name="tractButton"
+               type="button"
+               value="Toggle Census Tract Boundaries"
+               onclick="tractToggle()"
+        />
+        
+    </div>
+<br style="clear: left;" />
+</div>
+
+
+<h3>Gavin Sonne <br>
+Instructor: Suresh Lodha <br>
+CMPS 165: Data programming for Visualization <br>
+Fall 2016</h3>
+
+<h2></h2>
+
+</body>
