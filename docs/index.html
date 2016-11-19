@@ -48,7 +48,7 @@ svg {
 
 <head>
 <title>Washington Population Density</title>
-<h1>Wasington Population Density, 2014</h1>
+<h1>Washington Population Density, 2014</h1>
 </head>
 
 <body>
@@ -135,7 +135,6 @@ d3.json("wa.json", function(error, wa) {
         .entries(tracts.features.filter(function(d) { return d.properties.area; })))
     .enter().append("path")
       .call(colorToggle)
-      //.style("fill", function(d) { return d.key; })
       .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
 
   // Draw county borders.
